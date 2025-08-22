@@ -1,0 +1,225 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Admin Dashboard</title>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-database-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.6.10/firebase-storage-compat.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', sans-serif;
+      margin: 0;
+      padding: 40px;
+      background-color: #f9fafb;
+      color: #333;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 40px;
+      color: #222;
+    }
+
+    .stats {
+      display: flex;
+      justify-content: space-between;
+      gap: 20px;
+      margin-bottom: 40px;
+      flex-wrap: wrap;
+    }
+
+    .stats div {
+      flex: 1;
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      text-align: center;
+      min-width: 150px;
+    }
+
+    form {
+      background: #fff;
+      padding: 20px;
+      border-radius: 8px;
+      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+      margin: 0 auto 40px;
+      max-width: 500px;
+    }
+
+    form input {
+      width: 100%;
+      padding: 10px;
+      margin: 10px 0;
+      border: 1px solid #ccc;
+      border-radius: 6px;
+    }
+
+    form button {
+      padding: 10px 20px;
+      background-color: #2563eb;
+      color: #fff;
+      border: none;
+      border-radius: 6px;
+      cursor: pointer;
+      font-weight: bold;
+    }
+
+    form button:hover {
+      background-color: #1d4ed8;
+    }
+
+    #productList {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+      gap: 20px;
+    }
+
+    .product {
+      background: #fff;
+      padding: 16px;
+      border-radius: 8px;
+      box-shadow: 0 2px 5px rgba(0, 0, 0, 0.07);
+      text-align: center;
+    }
+
+    .product img {
+      max-height: 120px;
+      object-fit: contain;
+      margin: 10px 0;
+      border-radius: 4px;
+    }
+
+    .product button {
+      background-color: #ef4444;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+      margin-top: 10px;
+    }
+
+    .product button:hover {
+      background-color: #dc2626;
+    }
+  </style>
+</head>
+<body>
+  <h1>Admin Dashboard</h1>
+
+  <div class="stats">
+    <div><strong>Total Products</strong><br><span id="totalProducts">0</span></div>
+    <div><strong>Items in Stock</strong><br><span id="itemsInStock">0</span></div>
+    <div><strong>Total Price</strong><br>$<span id="totalPrice">0</span></div>
+    <div><strong>Items Sold</strong><br><span id="itemsSold">0</span></div>
+  </div>
+
+  <form id="productForm">
+    <h3>Add New Product</h3>
+    <input type="text" id="productName" placeholder="Product Name" required>
+    <input type="number" id="productPrice" placeholder="Price" required>
+    <input type="number" id="productQty" placeholder="Quantity" required>
+    <input type="text" id="imageURL" placeholder="Image URL (Optional)">
+    <input type="file" id="imageFile">
+    <button type="submit">Add Product</button>
+  </form>
+
+  <h3>Products</h3>
+  <div id="productList" class="product-list"></div>
+
+  <script>
+    const firebaseConfig = {
+      apiKey: "",
+      authDomain: "",
+      databaseURL: "",
+      projectId: "",
+      storageBucket: "",
+      messagingSenderId: "",
+      appId: ""
+    };
+
+    firebase.initializeApp(firebaseConfig);
+    const db = firebase.database();
+    const storage = firebase.storage();
+
+    const stats = {
+      totalProducts: document.getElementById('totalProducts'),
+      itemsInStock: document.getElementById('itemsInStock'),
+      totalPrice: document.getElementById('totalPrice'),
+      itemsSold: document.getElementById('itemsSold'),
+    };
+
+    const productList = document.getElementById('productList');
+    const productForm = document.getElementById('productForm');
+
+    function updateStats(products) {
+      let totalProducts = products.length;
+      let itemsInStock = 0;
+      let totalPrice = 0;
+      let itemsSold = 0;
+
+      products.forEach(p => {
+        itemsInStock += p.quantity;
+        totalPrice += p.price * p.quantity;
+      });
+
+      stats.totalProducts.textContent = totalProducts;
+      stats.itemsInStock.textContent = itemsInStock;
+      stats.totalPrice.textContent = totalPrice;
+      stats.itemsSold.textContent = itemsSold;
+    }
+
+    function renderProducts(snapshot) {
+      const products = [];
+      productList.innerHTML = '';
+      snapshot.forEach(child => {
+        const key = child.key;
+        const data = child.val();
+        products.push(data);
+
+        const div = document.createElement('div');
+        div.className = 'product';
+        div.innerHTML = `
+          <strong>${data.name}</strong><br>
+          $${data.price} x ${data.quantity}<br>
+          ${data.image ? `<img src="${data.image}" />` : '<em>No image</em>'}<br>
+          <button onclick="deleteProduct('${key}')">Delete</button>
+        `;
+        productList.appendChild(div);
+      });
+
+      updateStats(products);
+    }
+
+    function deleteProduct(key) {
+      firebase.database().ref('products/' + key).remove();
+    }
+
+    productForm.addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById('productName').value;
+      const price = Number(document.getElementById('productPrice').value);
+      const quantity = Number(document.getElementById('productQty').value);
+      const imageURL = document.getElementById('imageURL').value;
+      const imageFile = document.getElementById('imageFile').files[0];
+
+      let image = imageURL || '';
+
+      if (imageFile) {
+        const storageRef = storage.ref('product_images/' + imageFile.name);
+        await storageRef.put(imageFile);
+        image = await storageRef.getDownloadURL();
+      }
+
+      const newProductRef = db.ref('products').push();
+      await newProductRef.set({ name, price, quantity, image });
+
+      productForm.reset();
+    });
+
+    db.ref('products').on('value', renderProducts);
+  </script>
+</body>
+</html>
